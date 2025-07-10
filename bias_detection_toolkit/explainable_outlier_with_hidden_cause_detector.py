@@ -1,8 +1,8 @@
 """
-TheoryOfConstraintsVariable
+ExplainableOutlierWithHiddenCause
 """
 
-class TheoryOfConstraintsVariableDetector:
+class ExplainableOutlierWithHiddenCauseDetector:
     def __init__(self, data):
         self.data = data
 

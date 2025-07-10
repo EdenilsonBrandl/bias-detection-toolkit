@@ -1,8 +1,8 @@
 """
-TheoryOfConstraintsVariable
+SelectionBiasOrMalintent
 """
 
-class TheoryOfConstraintsVariableDetector:
+class SelectionBiasOrMalintentDetector:
     def __init__(self, data):
         self.data = data
 

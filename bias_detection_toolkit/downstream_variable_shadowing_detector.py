@@ -1,8 +1,8 @@
 """
-TheoryOfConstraintsVariable
+DownstreamVariableShadowing
 """
 
-class TheoryOfConstraintsVariableDetector:
+class DownstreamVariableShadowingDetector:
     def __init__(self, data):
         self.data = data
 

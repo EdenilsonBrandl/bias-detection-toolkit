@@ -1,8 +1,8 @@
 """
-TheoryOfConstraintsVariable
+MaskedFeedbackBias
 """
 
-class TheoryOfConstraintsVariableDetector:
+class MaskedFeedbackBiasDetector:
     def __init__(self, data):
         self.data = data
 

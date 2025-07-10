@@ -1,8 +1,8 @@
 """
-TheoryOfConstraintsVariable
+ResultDependentNoise
 """
 
-class TheoryOfConstraintsVariableDetector:
+class ResultDependentNoiseDetector:
     def __init__(self, data):
         self.data = data
 

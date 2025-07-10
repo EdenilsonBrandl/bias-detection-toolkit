@@ -1,8 +1,8 @@
 """
-TheoryOfConstraintsVariable
+ContextualInputVariation
 """
 
-class TheoryOfConstraintsVariableDetector:
+class ContextualInputVariationDetector:
     def __init__(self, data):
         self.data = data
 

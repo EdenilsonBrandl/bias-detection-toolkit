@@ -1,8 +1,8 @@
 """
-TheoryOfConstraintsVariable
+ArtificialResultImprovement
 """
 
-class TheoryOfConstraintsVariableDetector:
+class ArtificialResultImprovementDetector:
     def __init__(self, data):
         self.data = data
 

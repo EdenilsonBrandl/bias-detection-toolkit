@@ -1,8 +1,8 @@
 """
-TheoryOfConstraintsVariable
+RangeDriftWithoutBreach
 """
 
-class TheoryOfConstraintsVariableDetector:
+class RangeDriftWithoutBreachDetector:
     def __init__(self, data):
         self.data = data
 

@@ -1,8 +1,8 @@
 """
-TheoryOfConstraintsVariable
+ManualDataForgery
 """
 
-class TheoryOfConstraintsVariableDetector:
+class ManualDataForgeryDetector:
     def __init__(self, data):
         self.data = data
 

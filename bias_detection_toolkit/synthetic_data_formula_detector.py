@@ -1,8 +1,8 @@
 """
-TheoryOfConstraintsVariable
+SyntheticDataFormula
 """
 
-class TheoryOfConstraintsVariableDetector:
+class SyntheticDataFormulaDetector:
     def __init__(self, data):
         self.data = data
 
