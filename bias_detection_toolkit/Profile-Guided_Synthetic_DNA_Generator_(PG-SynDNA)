@@ -1,0 +1,128 @@
+# Install dependencies
+!pip install numpy pandas tensorflow matplotlib --quiet
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense
+from tensorflow.keras.utils import to_categorical
+import random
+
+# Fix random seeds for reproducibility
+np.random.seed(42)
+random.seed(42)
+tf.random.set_seed(42)
+
+# ----------------------
+# 1. Define Human Functional Profiles
+# ----------------------
+profiles = {
+    0: "Athlete",       # Strength, speed, endurance bias
+    1: "Intellectual",  # Focus, memory, creativity bias
+    2: "Astronaut"      # Space travel resilience bias
+}
+
+# ----------------------
+# 2. DNA Generation Utilities
+# ----------------------
+def generate_biased_dna(profile_id, length=100):
+    """
+    Generate a synthetic DNA sequence biased by profile.
+    The biases simulate nucleotide frequency relevant to phenotype.
+    """
+    base_probabilities = {
+        0: {'A': 0.1, 'C': 0.3, 'G': 0.3, 'T': 0.3},  # Athlete
+        1: {'A': 0.4, 'C': 0.2, 'G': 0.2, 'T': 0.2},  # Intellectual
+        2: {'A': 0.25, 'C': 0.25, 'G': 0.25, 'T': 0.25} # Astronaut
+    }
+    probs = base_probabilities[profile_id]
+    bases = list(probs.keys())
+    weights = list(probs.values())
+    return ''.join(np.random.choice(bases, p=weights, size=length))
+
+# ----------------------
+# 3. Generate Dataset
+# ----------------------
+n_samples = 3000
+seq_length = 100
+
+dna_sequences = []
+labels = []
+
+for _ in range(n_samples):
+    profile_id = np.random.choice(list(profiles.keys()))
+    seq = generate_biased_dna(profile_id, seq_length)
+    dna_sequences.append(seq)
+    labels.append(profile_id)
+
+# ----------------------
+# 4. Encode DNA sequences to integers: A=0, C=1, G=2, T=3
+# ----------------------
+base_to_int = {'A':0, 'C':1, 'G':2, 'T':3}
+
+X = np.array([[base_to_int[base] for base in seq] for seq in dna_sequences])
+y = np.array(labels)
+
+print(f"Data shapes: X={X.shape}, y={y.shape}")
+
+# ----------------------
+# 5. Prepare Training Data for Model
+# ----------------------
+# One-hot encode the DNA sequences (each nucleotide as a 4D vector)
+X_onehot = to_categorical(X, num_classes=4).reshape(n_samples, -1)  # shape: (samples, seq_length*4)
+
+# One-hot encode profile labels
+y_onehot = to_categorical(y, num_classes=len(profiles))
+
+# ----------------------
+# 6. Build Neural Network Model: Profile → Synthetic DNA Sequence
+# ----------------------
+model = Sequential([
+    Dense(128, activation='relu', input_shape=(len(profiles),)),
+    Dense(256, activation='relu'),
+    Dense(seq_length * 4, activation='softmax')  # Output probabilities for each nucleotide per position
+])
+
+model.compile(optimizer='adam', loss='categorical_crossentropy')
+
+print(model.summary())
+
+# ----------------------
+# 7. Train Model
+# ----------------------
+history = model.fit(y_onehot, X_onehot, epochs=20, batch_size=64, verbose=2)
+
+# ----------------------
+# 8. Generate Synthetic DNA from Profile
+# ----------------------
+def generate_synthetic_dna(profile_name):
+    profile_id = {v:k for k,v in profiles.items()}[profile_name]
+    input_vec = to_categorical([profile_id], num_classes=len(profiles))
+    pred = model.predict(input_vec)[0]
+    pred = pred.reshape(seq_length, 4)  # Each row = nucleotide probs at position
+    bases = ['A', 'C', 'G', 'T']
+    synthetic_seq = ''.join(np.random.choice(bases, p=prob_dist) for prob_dist in pred)
+    return synthetic_seq
+
+# ----------------------
+# 9. Visualize Nucleotide Frequency for a Generated Sequence
+# ----------------------
+def plot_base_frequency(dna_seq, title="Base Frequency"):
+    counts = {b: dna_seq.count(b) for b in "ACGT"}
+    plt.bar(counts.keys(), counts.values())
+    plt.title(title)
+    plt.xlabel("Nucleotide")
+    plt.ylabel("Frequency")
+    plt.show()
+
+# ----------------------
+# 10. Test the Generator
+# ----------------------
+for profile in profiles.values():
+    print(f"\n🔬 Synthetic DNA for {profile}:")
+    seq = generate_synthetic_dna(profile)
+    print(seq)
+    plot_base_frequency(seq, title=f"Base Frequency for {profile}")
+
