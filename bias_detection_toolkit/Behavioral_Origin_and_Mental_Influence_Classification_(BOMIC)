@@ -1,0 +1,135 @@
+# Install dependencies
+!pip install numpy pandas scikit-learn seaborn matplotlib --quiet
+
+import numpy as np
+import pandas as pd
+import random
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report, confusion_matrix
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# 1. DEFINE BEHAVIORAL ORIGIN CLASSES
+behavior_origins = [
+    "Authentic", "Bias", "Simulated", "Deliberate",
+    "Behavioral", "Subpersonality", "Muscle Memory", "Automatic Response"
+]
+
+# 2. SYNTHETIC DATA GENERATION FUNCTION
+def generate_synthetic_data(samples=5000, seed=42):
+    random.seed(seed)
+    np.random.seed(seed)
+    
+    data = []
+    
+    # Base feature profiles for each behavior origin
+    base_profiles = {
+        "Delay":           [0.5, 0.4, 1.0, 1.2, 0.3, 0.8, 0.2, 0.1],
+        "Emotion":         [0.8, 0.6, 0.3, 0.5, 0.6, 0.7, 0.3, 0.2],
+        "Logic":           [0.9, 0.5, 0.8, 0.95, 0.6, 0.5, 0.4, 0.3],
+        "Motor Activity":  [0.5, 0.4, 0.2, 0.3, 0.7, 0.5, 0.95, 0.98],
+        "Variability":     [0.2, 0.3, 0.5, 0.3, 0.4, 0.8, 0.1, 0.05]
+    }
+    
+    for _ in range(samples):
+        origin_idx = random.randint(0, len(behavior_origins) - 1)
+        mental_influence = 1 if random.random() < 0.4 else 0
+        
+        # Generate features with noise around the base profile
+        delay = np.clip(np.random.normal(base_profiles["Delay"][origin_idx], 0.1), 0, 2)
+        emotion = np.clip(np.random.normal(base_profiles["Emotion"][origin_idx], 0.1), 0, 1)
+        logic = np.clip(np.random.normal(base_profiles["Logic"][origin_idx], 0.1), 0, 1)
+        motor = np.clip(np.random.normal(base_profiles["Motor Activity"][origin_idx], 0.1), 0, 1)
+        variability = np.clip(np.random.normal(base_profiles["Variability"][origin_idx], 0.1), 0, 1)
+        
+        # Adjust features if influenced by mental illness
+        if mental_influence:
+            emotion = np.clip(emotion + np.random.normal(0.3, 0.1), 0, 1)
+            logic = np.clip(logic - np.random.normal(0.3, 0.1), 0, 1)
+            variability = np.clip(variability + np.random.normal(0.2, 0.1), 0, 1)
+            motor = np.clip(motor + np.random.normal(0.1, 0.1), 0, 1)
+        
+        data.append([delay, emotion, logic, motor, variability, origin_idx, mental_influence])
+    
+    df = pd.DataFrame(data, columns=['Delay', 'Emotion', 'Logic', 'Motor', 'Variability', 'Origin', 'MentalInfluence'])
+    df['Origin'] = df['Origin'].astype(int)
+    df['MentalInfluence'] = df['MentalInfluence'].astype(int)
+    return df
+
+# Generate dataset
+df = generate_synthetic_data()
+
+# Quick view
+print(df.head())
+
+# 3. DATA VISUALIZATION
+plt.figure(figsize=(10,6))
+sns.countplot(x='Origin', data=df)
+plt.xticks(ticks=range(len(behavior_origins)), labels=behavior_origins, rotation=45)
+plt.title("Distribution of Behavioral Origins in Synthetic Data")
+plt.show()
+
+# 4. MODEL 1: CLASSIFYING BEHAVIORAL ORIGIN
+X_origin = df[['Delay', 'Emotion', 'Logic', 'Motor', 'Variability']]
+y_origin = df['Origin']
+
+X_train_o, X_test_o, y_train_o, y_test_o = train_test_split(X_origin, y_origin, test_size=0.2, random_state=42)
+
+model_origin = RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1)
+model_origin.fit(X_train_o, y_train_o)
+
+y_pred_o = model_origin.predict(X_test_o)
+
+print("\nBehavioral Origin Classification Report:")
+print(classification_report(y_test_o, y_pred_o, target_names=behavior_origins))
+
+# Confusion matrix heatmap for better visualization
+plt.figure(figsize=(8,6))
+sns.heatmap(confusion_matrix(y_test_o, y_pred_o), annot=True, fmt='d', 
+            xticklabels=behavior_origins, yticklabels=behavior_origins, cmap='Blues')
+plt.title("Confusion Matrix - Behavioral Origin")
+plt.xlabel("Predicted")
+plt.ylabel("True")
+plt.show()
+
+# 5. MODEL 2: PREDICTING MENTAL ILLNESS INFLUENCE
+y_mental = df['MentalInfluence']
+
+X_train_m, X_test_m, y_train_m, y_test_m = train_test_split(X_origin, y_mental, test_size=0.2, random_state=42)
+
+model_mental = RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1, class_weight='balanced')
+model_mental.fit(X_train_m, y_train_m)
+
+y_pred_m = model_mental.predict(X_test_m)
+
+print("\nMental Illness Influence Classification Report:")
+print(classification_report(y_test_m, y_pred_m))
+
+# 6. FUNCTION TO EVALUATE A SINGLE RESPONSE
+def evaluate_response(delay, emotion, logic, motor, variability):
+    features = np.array([[delay, emotion, logic, motor, variability]])
+    
+    # Predict behavior origin
+    origin_pred = model_origin.predict(features)[0]
+    origin_probs = model_origin.predict_proba(features)[0]
+    origin_confidence = origin_probs[origin_pred]
+    
+    # Predict mental illness influence
+    mental_pred = model_mental.predict(features)[0]
+    mental_probs = model_mental.predict_proba(features)[0]
+    mental_confidence = mental_probs[mental_pred]
+    
+    print("\n--- Behavioral Origin and Mental Influence Evaluation ---")
+    print(f"Behavioral Origin: {behavior_origins[origin_pred]} (Confidence: {origin_confidence:.2f})")
+    print(f"Mental Illness Influence: {'YES' if mental_pred else 'NO'} (Confidence: {mental_confidence:.2f})")
+    print(f"Feature Vector: Delay={delay}, Emotion={emotion}, Logic={logic}, Motor={motor}, Variability={variability}")
+
+# 7. EXAMPLE USAGE
+evaluate_response(
+    delay=1.1,
+    emotion=0.9,
+    logic=0.3,
+    motor=0.6,
+    variability=0.6
+)
