@@ -1,0 +1,156 @@
+# Install necessary libraries (uncomment if needed in Colab)
+# !pip install numpy pandas scikit-learn seaborn matplotlib
+
+import numpy as np
+import pandas as pd
+import random
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report, ConfusionMatrixDisplay
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# Behavioral categories to classify
+categories = [
+    "Authentic", "Bias", "Simulated", "Deliberate",
+    "Behaviorist", "Subpersonality", "Muscle Memory", "Automatic Response"
+]
+
+def simulate_behavior_dataset(n_samples=3000, random_seed=42):
+    """
+    Simulate a dataset of behavioral vectors labeled by origin category.
+    Each behavior type has distinct statistical patterns on features.
+    """
+    np.random.seed(random_seed)
+    data = []
+    for _ in range(n_samples):
+        cat = np.random.randint(0, len(categories))
+
+        # Define feature distributions per category
+        if cat == 0:  # Authentic
+            delay = np.random.normal(0.5, 0.1)
+            emotion = np.random.uniform(0.6, 1.0)
+            logic = np.random.uniform(0.6, 1.0)
+            motor = np.random.uniform(0.4, 0.7)
+            variability = np.random.uniform(0.1, 0.3)
+
+        elif cat == 1:  # Bias
+            delay = np.random.normal(0.4, 0.1)
+            emotion = np.random.uniform(0.5, 0.8)
+            logic = np.random.uniform(0.3, 0.6)
+            motor = np.random.uniform(0.3, 0.5)
+            variability = np.random.uniform(0.2, 0.4)
+
+        elif cat == 2:  # Simulated
+            delay = np.random.normal(1.0, 0.2)
+            emotion = np.random.uniform(0.1, 0.4)
+            logic = np.random.uniform(0.8, 1.0)
+            motor = np.random.uniform(0.1, 0.3)
+            variability = np.random.uniform(0.4, 0.6)
+
+        elif cat == 3:  # Deliberate
+            delay = np.random.normal(1.2, 0.3)
+            emotion = np.random.uniform(0.3, 0.6)
+            logic = np.random.uniform(0.8, 1.0)
+            motor = np.random.uniform(0.3, 0.6)
+            variability = np.random.uniform(0.2, 0.4)
+
+        elif cat == 4:  # Behaviorist (reactive)
+            delay = np.random.normal(0.3, 0.1)
+            emotion = np.random.uniform(0.4, 0.7)
+            logic = np.random.uniform(0.4, 0.7)
+            motor = np.random.uniform(0.5, 0.8)
+            variability = np.random.uniform(0.3, 0.5)
+
+        elif cat == 5:  # Subpersonality / Triggered
+            delay = np.random.normal(0.8, 0.2)
+            emotion = np.random.uniform(0.2, 0.9)
+            logic = np.random.uniform(0.3, 0.7)
+            motor = np.random.uniform(0.2, 0.6)
+            variability = np.random.uniform(0.6, 0.9)
+
+        elif cat == 6:  # Muscle Memory (trained)
+            delay = np.random.normal(0.2, 0.05)
+            emotion = np.random.uniform(0.1, 0.4)
+            logic = np.random.uniform(0.2, 0.5)
+            motor = np.random.uniform(0.8, 1.0)
+            variability = np.random.uniform(0.05, 0.15)
+
+        elif cat == 7:  # Automatic Response (complex reflex)
+            delay = np.random.normal(0.1, 0.05)
+            emotion = np.random.uniform(0.1, 0.3)
+            logic = np.random.uniform(0.1, 0.3)
+            motor = np.random.uniform(0.9, 1.0)
+            variability = np.random.uniform(0.05, 0.1)
+
+        # Append a single sample's features and label
+        data.append([delay, emotion, logic, motor, variability, cat])
+
+    df = pd.DataFrame(data, columns=['Delay', 'Emotion', 'Logic', 'MotorActivity', 'Variability', 'Label'])
+
+    # Clean data: clip any negative values which may occur due to normal distributions
+    for col in ['Delay', 'Emotion', 'Logic', 'MotorActivity', 'Variability']:
+        df[col] = df[col].clip(lower=0)
+
+    return df
+
+# Generate dataset
+df = simulate_behavior_dataset()
+
+# Display first few rows
+print("Sample data preview:")
+print(df.head())
+
+# Visualize pairplot with hue on Label
+sns.pairplot(df, hue="Label", palette="tab10", corner=True,
+             plot_kws={"alpha":0.6, "s":40})
+plt.suptitle("Behavioral Pattern Visualization by Category", y=1.02)
+plt.show()
+
+# Prepare data for modeling
+X = df.drop(columns='Label')
+y = df['Label']
+
+# Split into train/test
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, stratify=y, random_state=42
+)
+
+# Initialize and train classifier
+clf = RandomForestClassifier(
+    n_estimators=200,
+    max_depth=15,
+    random_state=42,
+    class_weight='balanced'  # handle any class imbalance
+)
+clf.fit(X_train, y_train)
+
+# Predict on test set
+y_pred = clf.predict(X_test)
+
+# Evaluation report
+print("Classification Report:\n")
+print(classification_report(y_test, y_pred, target_names=categories))
+
+# Plot confusion matrix
+ConfusionMatrixDisplay.from_estimator(
+    clf, X_test, y_test, display_labels=categories, cmap='Blues', xticks_rotation='vertical'
+)
+plt.title("Confusion Matrix of Behavioral Origin Classification")
+plt.show()
+
+def evaluate_behavior(delay, emotion, logic, motor, variability):
+    """
+    Predict the behavioral origin category given input feature values.
+    Prints the predicted class with confidence score.
+    """
+    features = np.array([[delay, emotion, logic, motor, variability]])
+    pred_class = clf.predict(features)[0]
+    pred_proba = clf.predict_proba(features)[0][pred_class]
+
+    print("\nBehavioral Origin Prediction:")
+    print(f"Category: {categories[pred_class]}  (Confidence: {pred_proba:.2f})")
+    print(f"Input Features → Delay: {delay}, Emotion: {emotion}, Logic: {logic}, Motor Activity: {motor}, Variability: {variability}")
+
+# Example test
+evaluate_behavior(delay=0.12, emotion=0.2, logic=0.25, motor=0.95, variability=0.08)
