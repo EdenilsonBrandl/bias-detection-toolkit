@@ -1,0 +1,125 @@
+# Install required libraries (uncomment if needed)
+# !pip install numpy pandas matplotlib scikit-learn tensorflow
+
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import classification_report, confusion_matrix
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Dropout
+from tensorflow.keras.callbacks import EarlyStopping
+
+# --- 1. Data generation: Logistic Map with emergent chaos ---
+def logistic_map(r, x):
+    return r * x * (1 - x)
+
+def generate_chaos_data(n_samples=10000, sequence_length=50, transient_length=150, chaos_threshold=0.1, random_state=42):
+    """
+    Generates sequences from the logistic map:
+    - Starts with initial x and parameter r.
+    - Generates full sequence including transient (ignored for prediction).
+    - Uses std deviation of last part of sequence to label as chaotic or not.
+    - Returns sequences and binary labels.
+    """
+    np.random.seed(random_state)
+    X = []
+    y = []
+
+    total_length = transient_length + sequence_length
+    for _ in range(n_samples):
+        r = np.random.uniform(3.4, 4.0)  # Known chaotic parameter region
+        x = np.random.uniform(0.2, 0.8)
+
+        seq = []
+        for _ in range(total_length):
+            x = logistic_map(r, x)
+            seq.append(x)
+
+        # Calculate std deviation on last 50 values to detect chaos
+        std_dev = np.std(seq[-sequence_length:])
+        label = 1 if std_dev > chaos_threshold else 0
+
+        # Use initial 'sequence_length' values as features
+        X.append(seq[:sequence_length])
+        y.append(label)
+
+    return np.array(X), np.array(y)
+
+# --- 2. Generate Data ---
+X, y = generate_chaos_data(n_samples=15000, sequence_length=50)
+
+print(f"Data shape: {X.shape}, Labels shape: {y.shape}")
+print(f"Chaos samples: {np.sum(y == 1)}, Stable samples: {np.sum(y == 0)}")
+
+# --- 3. Normalize Data ---
+scaler = MinMaxScaler()
+X_scaled = scaler.fit_transform(X)
+
+# --- 4. Split data into train/test sets ---
+X_train, X_test, y_train, y_test = train_test_split(
+    X_scaled, y, test_size=0.2, random_state=42, stratify=y)
+
+# --- 5. Build Neural Network Model ---
+def build_model(input_dim):
+    model = Sequential([
+        Dense(128, activation='relu', input_shape=(input_dim,)),
+        Dropout(0.3),
+        Dense(64, activation='relu'),
+        Dropout(0.2),
+        Dense(32, activation='relu'),
+        Dense(1, activation='sigmoid')
+    ])
+
+    model.compile(optimizer='adam',
+                  loss='binary_crossentropy',
+                  metrics=['accuracy'])
+    return model
+
+model = build_model(X_train.shape[1])
+model.summary()
+
+# --- 6. Train Model with Early Stopping ---
+early_stop = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+
+history = model.fit(
+    X_train, y_train,
+    epochs=50,
+    batch_size=128,
+    validation_split=0.2,
+    callbacks=[early_stop],
+    verbose=2
+)
+
+# --- 7. Evaluate Model ---
+y_pred_prob = model.predict(X_test).flatten()
+y_pred = (y_pred_prob > 0.5).astype(int)
+
+print("\nClassification Report:")
+print(classification_report(y_test, y_pred, digits=4))
+
+print("Confusion Matrix:")
+print(confusion_matrix(y_test, y_pred))
+
+# --- 8. Plot training history ---
+plt.figure(figsize=(12,5))
+
+plt.subplot(1,2,1)
+plt.plot(history.history['loss'], label='Train Loss')
+plt.plot(history.history['val_loss'], label='Val Loss')
+plt.title('Loss During Training')
+plt.xlabel('Epoch')
+plt.ylabel('Binary Crossentropy Loss')
+plt.legend()
+plt.grid(True)
+
+plt.subplot(1,2,2)
+plt.plot(history.history['accuracy'], label='Train Accuracy')
+plt.plot(history.history['val_accuracy'], label='Val Accuracy')
+plt.title('Accuracy During Training')
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.legend()
+plt.grid(True)
+
+plt.show()
