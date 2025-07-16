@@ -1,0 +1,118 @@
+# Install dependencies
+!pip install -q pandas numpy scikit-learn matplotlib seaborn
+
+import pandas as pd
+import numpy as np
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# --- 1. DATA SIMULATION: Generate synthetic candidate interview profiles ---
+def simulate_candidates(n=1000, random_state=42):
+    np.random.seed(random_state)
+    data = []
+
+    for _ in range(n):
+        # Simulate six key candidate attributes, values between 0 and 1
+        attributes = {
+            'Technical': np.round(np.random.uniform(), 2),
+            'Communication': np.round(np.random.uniform(), 2),
+            'Attitude': np.round(np.random.uniform(), 2),
+            'Creativity': np.round(np.random.uniform(), 2),
+            'Adaptability': np.round(np.random.uniform(), 2),
+            'Teamwork': np.round(np.random.uniform(), 2)
+        }
+
+        # Overall strength score as average
+        overall_score = np.mean(list(attributes.values()))
+
+        # Label: 1 = Strong, 0 = Weak
+        general_label = 1 if overall_score > 0.65 else 0
+
+        # Hidden strengths: weak candidate but with standout positive traits
+        hidden_strength = 1 if (general_label == 0 and
+                                (attributes['Attitude'] > 0.8 or attributes['Creativity'] > 0.8)) else 0
+
+        # Hidden weaknesses: strong candidate but with concerning traits
+        hidden_weakness = 1 if (general_label == 1 and
+                                (attributes['Attitude'] < 0.4 or attributes['Adaptability'] < 0.4)) else 0
+
+        data.append([
+            attributes['Technical'], attributes['Communication'], attributes['Attitude'],
+            attributes['Creativity'], attributes['Adaptability'], attributes['Teamwork'],
+            general_label, hidden_strength, hidden_weakness
+        ])
+
+    columns = ['Technical', 'Communication', 'Attitude', 'Creativity', 'Adaptability', 'Teamwork',
+               'GeneralLabel', 'HiddenStrength', 'HiddenWeakness']
+    return pd.DataFrame(data, columns=columns)
+
+# Generate dataset
+df = simulate_candidates()
+print("Sample data:")
+print(df.head())
+
+# --- 2. Exploratory Visualization ---
+sns.pairplot(df, hue='GeneralLabel', diag_kind='kde', plot_kws={'alpha': 0.6})
+plt.suptitle('Pairplot of Candidate Attributes by General Strength', y=1.02)
+plt.show()
+
+# --- 3. Train model to classify general candidate strength ---
+features = ['Technical', 'Communication', 'Attitude', 'Creativity', 'Adaptability', 'Teamwork']
+X = df[features]
+y = df['GeneralLabel']
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+
+clf_general = RandomForestClassifier(n_estimators=150, random_state=42, n_jobs=-1)
+clf_general.fit(X_train, y_train)
+
+y_pred = clf_general.predict(X_test)
+print("General Profile Classification Report (Strong=1 / Weak=0):")
+print(classification_report(y_test, y_pred))
+
+# --- 4. Model to detect hidden strengths in weak candidates ---
+df_weak = df[df['GeneralLabel'] == 0]
+X_weak = df_weak[features]
+y_weak = df_weak['HiddenStrength']
+
+clf_hidden_strength = RandomForestClassifier(n_estimators=150, random_state=42, n_jobs=-1)
+clf_hidden_strength.fit(X_weak, y_weak)
+
+# --- 5. Model to detect hidden weaknesses in strong candidates ---
+df_strong = df[df['GeneralLabel'] == 1]
+X_strong = df_strong[features]
+y_strong = df_strong['HiddenWeakness']
+
+clf_hidden_weakness = RandomForestClassifier(n_estimators=150, random_state=42, n_jobs=-1)
+clf_hidden_weakness.fit(X_strong, y_strong)
+
+# --- 6. Candidate evaluation function ---
+def evaluate_candidate(candidate_attrs):
+    """
+    candidate_attrs: list or array of 6 floats in the order:
+    [Technical, Communication, Attitude, Creativity, Adaptability, Teamwork]
+    """
+
+    input_df = pd.DataFrame([candidate_attrs], columns=features)
+
+    general_pred = clf_general.predict(input_df)[0]
+    hidden_strength_pred = clf_hidden_strength.predict(input_df)[0] if general_pred == 0 else 0
+    hidden_weakness_pred = clf_hidden_weakness.predict(input_df)[0] if general_pred == 1 else 0
+
+    print(f"\n--- Candidate Evaluation ---")
+    print(f"General profile classification: {'STRONG' if general_pred == 1 else 'WEAK'}")
+    if hidden_strength_pred == 1:
+        print("✅ Hidden strength detected in a weak profile (e.g. excellent attitude or creativity).")
+    if hidden_weakness_pred == 1:
+        print("⚠️ Hidden weakness detected in a strong profile (e.g. poor attitude or adaptability).")
+    print(f"Candidate attribute scores: {dict(zip(features, candidate_attrs))}")
+
+# --- 7. Example evaluations ---
+print("\nEvaluating weak candidate with hidden strengths:")
+evaluate_candidate([0.45, 0.35, 0.9, 0.85, 0.3, 0.4])  # High attitude & creativity, overall weak
+
+print("\nEvaluating strong candidate with hidden weaknesses:")
+evaluate_candidate([0.9, 0.85, 0.35, 0.8, 0.3, 0.9])   # Low attitude and adaptability, overall strong
