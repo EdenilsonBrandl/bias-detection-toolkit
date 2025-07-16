@@ -1,0 +1,171 @@
+# Install dependencies (uncomment if running fresh environment)
+# !pip install pandas numpy scikit-learn matplotlib seaborn
+
+import numpy as np
+import pandas as pd
+import random
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# ----------------------------
+# 1. Base Metal List
+# ----------------------------
+metals = ['Al', 'Ti', 'Fe', 'Ni', 'Cr', 'Cu', 'Mg', 'Zr', 'V', 'Mo']
+
+# ----------------------------
+# 2. Base Metal Properties (arbitrary normalized scale)
+# Key properties: mechanical strength, specific weight, thermal resistance, chemical reactivity
+# ----------------------------
+metal_properties = {
+    'Al': {'strength': 40, 'weight': 20, 'thermal': 70, 'reactivity': 50},
+    'Ti': {'strength': 90, 'weight': 30, 'thermal': 80, 'reactivity': 30},
+    'Fe': {'strength': 75, 'weight': 70, 'thermal': 60, 'reactivity': 40},
+    'Ni': {'strength': 85, 'weight': 75, 'thermal': 65, 'reactivity': 35},
+    'Cr': {'strength': 80, 'weight': 60, 'thermal': 70, 'reactivity': 25},
+    'Cu': {'strength': 50, 'weight': 50, 'thermal': 90, 'reactivity': 60},
+    'Mg': {'strength': 35, 'weight': 10, 'thermal': 60, 'reactivity': 70},
+    'Zr': {'strength': 80, 'weight': 45, 'thermal': 85, 'reactivity': 20},
+    'V':  {'strength': 78, 'weight': 55, 'thermal': 70, 'reactivity': 25},
+    'Mo': {'strength': 88, 'weight': 65, 'thermal': 90, 'reactivity': 20}
+}
+
+# ----------------------------
+# 3. Generate Synthetic Alloy Dataset using Triangulation + DOE + Monte Carlo Sampling
+# ----------------------------
+def generate_alloy_dataset(num_samples=3000):
+    data = []
+    for _ in range(num_samples):
+        # Triangulation: randomly select 3 different metals
+        alloy_elements = random.sample(metals, 3)
+        # Generate proportions that sum to 1 using Dirichlet distribution (DOE)
+        proportions = np.random.dirichlet(np.ones(3))
+        
+        # Weighted average of properties
+        strength = sum(proportions[i] * metal_properties[alloy_elements[i]]['strength'] for i in range(3))
+        weight = sum(proportions[i] * metal_properties[alloy_elements[i]]['weight'] for i in range(3))
+        thermal = sum(proportions[i] * metal_properties[alloy_elements[i]]['thermal'] for i in range(3))
+        reactivity = sum(proportions[i] * metal_properties[alloy_elements[i]]['reactivity'] for i in range(3))
+        
+        # Composite fitness score optimized for space applications
+        # Higher strength & thermal, lower weight & reactivity preferred
+        space_fitness = 0.4 * strength + 0.3 * thermal - 0.15 * weight - 0.15 * reactivity
+        
+        # Save data
+        sample = {
+            'metal1': alloy_elements[0],
+            'metal2': alloy_elements[1],
+            'metal3': alloy_elements[2],
+            'p1': proportions[0],
+            'p2': proportions[1],
+            'p3': proportions[2],
+            'strength': strength,
+            'weight': weight,
+            'thermal': thermal,
+            'reactivity': reactivity,
+            'space_fitness': space_fitness
+        }
+        data.append(sample)
+    return pd.DataFrame(data)
+
+# Generate dataset
+df = generate_alloy_dataset()
+print("Sample dataset:")
+print(df.head())
+
+# ----------------------------
+# 4. One-Hot Encoding for categorical metal features
+# ----------------------------
+df_encoded = pd.get_dummies(df, columns=['metal1', 'metal2', 'metal3'])
+
+# ----------------------------
+# 5. Machine Learning Model: Predict Space Fitness Score
+# ----------------------------
+X = df_encoded.drop(columns=['space_fitness'])
+y = df_encoded['space_fitness']
+
+# Train/Test Split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Random Forest Regressor Model
+rf_model = RandomForestRegressor(n_estimators=250, random_state=42, n_jobs=-1)
+rf_model.fit(X_train, y_train)
+
+# Predictions and Evaluation
+y_pred = rf_model.predict(X_test)
+rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+print(f"\nModel RMSE on test set: {rmse:.3f}")
+
+# ----------------------------
+# 6. Visualization: Distribution of Space Fitness Scores
+# ----------------------------
+plt.figure(figsize=(10,6))
+sns.histplot(df['space_fitness'], bins=40, kde=True, color='steelblue')
+plt.title("Distribution of Alloy Space Fitness Scores")
+plt.xlabel("Space Fitness Score")
+plt.ylabel("Frequency")
+plt.grid(True)
+plt.show()
+
+# ----------------------------
+# 7. Monte Carlo-Based Optimizer: Generate Best Alloy According to Model Prediction
+# ----------------------------
+def monte_carlo_optimize_best_alloy(model, iterations=5000):
+    best_score = -np.inf
+    best_alloy = None
+    
+    for _ in range(iterations):
+        elements = random.sample(metals, 3)
+        proportions = np.random.dirichlet(np.ones(3))
+        
+        # Prepare input vector for prediction with one-hot encoding
+        sample_dict = {
+            'p1': proportions[0], 'p2': proportions[1], 'p3': proportions[2]
+        }
+        # Initialize metal presence columns with 0
+        for m in metals:
+            sample_dict[f'metal1_{m}'] = 0
+            sample_dict[f'metal2_{m}'] = 0
+            sample_dict[f'metal3_{m}'] = 0
+        # Set ones for selected metals
+        sample_dict[f'metal1_{elements[0]}'] = 1
+        sample_dict[f'metal2_{elements[1]}'] = 1
+        sample_dict[f'metal3_{elements[2]}'] = 1
+        
+        # Convert to DataFrame
+        sample_df = pd.DataFrame([sample_dict])
+        
+        # Predict space fitness
+        predicted_score = model.predict(sample_df)[0]
+        
+        if predicted_score > best_score:
+            best_score = predicted_score
+            # Calculate properties for reporting
+            strength = sum(proportions[i] * metal_properties[elements[i]]['strength'] for i in range(3))
+            weight = sum(proportions[i] * metal_properties[elements[i]]['weight'] for i in range(3))
+            thermal = sum(proportions[i] * metal_properties[elements[i]]['thermal'] for i in range(3))
+            reactivity = sum(proportions[i] * metal_properties[elements[i]]['reactivity'] for i in range(3))
+            best_alloy = {
+                'elements': elements,
+                'proportions': proportions,
+                'strength': strength,
+                'weight': weight,
+                'thermal': thermal,
+                'reactivity': reactivity,
+                'predicted_score': predicted_score
+            }
+    return best_alloy
+
+# Find best alloy with the model
+best_alloy = monte_carlo_optimize_best_alloy(rf_model, iterations=5000)
+
+print("\n🚀 Best alloy composition discovered:")
+for i, el in enumerate(best_alloy['elements']):
+    print(f"  - {el}: {best_alloy['proportions'][i]*100:.2f}%")
+print(f"🔧 Strength: {best_alloy['strength']:.2f}")
+print(f"⚖️ Weight: {best_alloy['weight']:.2f}")
+print(f"🔥 Thermal resistance: {best_alloy['thermal']:.2f}")
+print(f"⚠️ Reactivity: {best_alloy['reactivity']:.2f}")
+print(f"⭐ Predicted Space Fitness Score: {best_alloy['predicted_score']:.3f}")
